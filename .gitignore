@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+env/
+venv/
+ENV/
+.Python
+
+# VS Code
+.vscode/
+
+# Logs and outputs
+*.log
+*.out
+
+# Data files
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.png
+*.gif
+*.webm
+*.json
+*.csv
+
+# Model weights / YOLO
+*.pt
+*.pth
+runs/
+weights/
+
+# Environment settings
+.env
+.DS_Store
+
+# Roboflow/YOLO cache
+*.cache/
+*.onnx
+yolov5/__pycache__/

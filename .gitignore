@@ -1,45 +1,39 @@
 # Python
 __pycache__/
-*.py[cod]
-*.so
-*.egg
-*.egg-info/
-dist/
-build/
-env/
-venv/
-ENV/
-.Python
+*.pyc
+*.pyo
+*.pyd
 
-# VS Code
-.vscode/
+# Virtual environment
+venv/
+env/
+
+# Data folders (large data, videos, frames)
+# data/
+raw_videos/
+frames/
+
+# Model weights (large files)
+weights/
+runs/
 
 # Logs and outputs
 *.log
-*.out
+*.txt
 
-# Data files
-*.mp4
-*.avi
-*.mov
-*.jpg
-*.png
-*.gif
-*.webm
-*.json
-*.csv
+# Roboflow cache (if any)
+roboflow_cache/
 
-# Model weights / YOLO
-*.pt
-*.pth
-runs/
-weights/
-
-# Environment settings
-.env
+# System files
 .DS_Store
+Thumbs.db
 
-# Roboflow/YOLO cache
-*.cache/
-*.onnx
-yolov5/__pycache__/
+# IDE/editor files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Others
+*.zip
+*.tar.gz

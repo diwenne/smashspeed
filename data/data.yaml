@@ -1,7 +1,5 @@
-train: ../train/images
-val: ../valid/images
-test: ../test/images
+train: ../data/train/images
+val: ../data/train/images  
 
 nc: 1
 names: ['shuttlecock']
-

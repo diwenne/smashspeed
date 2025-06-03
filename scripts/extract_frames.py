@@ -32,4 +32,4 @@ def extract_frames(video_path, output_dir, total_frames):
     print(f"Extracted {saved} frames to {output_dir} (attempted {attempted})")
 
 # Example usage
-extract_frames("raw_videos/raw_c1_20250531_01.mov", "frames/raw_c1_20250531_01", total_frames=100)
+extract_frames("raw_videos/raw_ig_20250602_01.mov", "frames/raw_ig_20250602_01", total_frames=100)

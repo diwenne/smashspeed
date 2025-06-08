@@ -1,5 +1,13 @@
 train: ../data/train/images
-val: ../data/train/images  
+val: ../data/valid/images
+test: ../data/test/images
 
 nc: 1
 names: ['shuttlecock']
+
+roboflow:
+  workspace: diwenne
+  project: smashspeed
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/diwenne/smashspeed/dataset/3

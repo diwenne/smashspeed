@@ -8,10 +8,21 @@ __pycache__/
 venv/
 env/
 
+# Rough work
+inference/imgs/
+inference/runs/
+inference/inference_img.py
+inference/inference_vid.py
+inference/speed.py
+inference/test.py
+inference/vid_dimensions
+scripts
+
 # Data folders (large data, videos, frames)
 # data/
 raw_videos/
 frames/
+data/
 
 # Model weights (large files)
 weights/

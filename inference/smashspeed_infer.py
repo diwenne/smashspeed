@@ -6,6 +6,16 @@ import numpy as np
 from pathlib import Path
 from math import sqrt
 
+
+'''
+inference script:
+1. runs inference on every frame of a video (hardcoded)
+2. draws bounding box around the shuttlecock for each frame
+3. calculates the speed and scales it to km/hr, writing it on each frame as well
+4. saves the output video to runs/ folder 
+
+'''
+
 # example usage 
 # python speed_scaled.py --real_length_m 6 --fps 30
 # fps will be detected if not set, real_length_m is in meters
@@ -13,35 +23,51 @@ from math import sqrt
 
 
 # ------------------------ CONFIG ------------------------
-input_video_path = '../raw_videos/clip_cosports_20250608_02.mov'
-weights_path = '../yolov5/runs/train/smashspeed_v3/weights/best.pt'
+BASE_DIR = Path(__file__).resolve().parent
+input_video_path = (BASE_DIR / "../raw_videos/clip_yt_20210131_01.mp4").resolve()
+weights_path = (BASE_DIR / "../yolov5/runs/train/smashspeed_v3/weights/best.pt").resolve()
 # --------------------------------------------------------
 
-os.makedirs("runs", exist_ok=True)
+os.makedirs(BASE_DIR / "runs", exist_ok=True)
+
+import os
 
 def convert_mov_to_mp4(input_path):
-    if not input_path.lower().endswith('.mov'):
+    if not str(input_path).lower().endswith('.mov'):
         return input_path
     print("Converting .mov to .mp4...")
+    
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
         print(f"Error: Cannot open video {input_path}")
         return None
+
     fps = cap.get(cv2.CAP_PROP_FPS)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    temp_path = input_path.replace('.mov', '_converted.mp4')
+
+    # New path: same name, .mp4 extension
+    output_path = input_path.rsplit('.', 1)[0] + '.mp4'
+    
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(temp_path, fourcc, fps, (width, height))
+    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+    
     while True:
         ret, frame = cap.read()
         if not ret:
             break
         out.write(frame)
+
     cap.release()
     out.release()
-    print(f"Saved converted video to {temp_path}")
-    return temp_path
+    
+    print(f"✅ Converted to {output_path}")
+    
+    # Optionally remove the original .mov file
+    # os.remove(input_path)
+    # print(f"🗑️ Deleted original {input_path}")
+
+    return output_path
 
 def save_scale_info(pixel_length, scale_factor, video_path):
     os.makedirs("runs", exist_ok=True)  # Ensure 'runs/' exists
@@ -55,8 +81,13 @@ def save_scale_info(pixel_length, scale_factor, video_path):
 def draw_boxes_on_frame(frame, boxes, fps, prev_center=None, prev_frame_idx=None, current_frame_idx=0, scale_factor=None):
     speed_text = ""
     current_center = None
-    if len(boxes) > 0:
-        xmin, ymin, xmax, ymax = map(int, boxes[0][:4])
+    # if len(boxes) > 0:
+        # # Find the box with the highest confidence score
+        # best_box = max(boxes, key=lambda b: b[4])  # index 4 is the confidence
+        # xmin, ymin, xmax, ymax = map(int, best_box[:4])
+        # or print all boxes:
+    for i in range(len(boxes)):
+        xmin, ymin, xmax, ymax = map(int, boxes[i][:4])
         center_x = (xmin + xmax) // 2
         center_y = (ymin + ymax) // 2
         current_center = (center_x, center_y)
@@ -92,7 +123,7 @@ def run_inference_on_video(video_path, model, fixed_fps=None, scale_factor=None)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     output_name = Path(video_path).stem
-    out_path = os.path.join("runs", f"boxed_{output_name}.mp4")
+    out_path = BASE_DIR / "runs" / f"boxed_{output_name}.mp4"
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out_writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
     prev_center = None
@@ -185,6 +216,7 @@ def main():
 
     if processed_path:
         model = torch.hub.load('ultralytics/yolov5', 'custom', path=weights_path)
+        # model.conf = 0.25
         run_inference_on_video(processed_path, model, fixed_fps=args.fps, scale_factor=scale_factor)
 
 if __name__ == "__main__":

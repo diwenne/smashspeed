@@ -1,5 +1,9 @@
 import cv2
 
+'''
+helper file that gets dimensions of a video
+'''
+
 video_path = '../raw_videos/clip_cosports_20250608_01.mov'  # Replace with your path
 
 cap = cv2.VideoCapture(video_path)

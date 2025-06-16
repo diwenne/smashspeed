@@ -1,13 +1,21 @@
 import os
 import cv2
 import numpy as np
+from pathlib import Path
 
-def extract_uniform_frames(video_path, output_dir, total_frames):
+'''
+frame extraction:
+only extracts a specified number of frames, uniformly, from a vid
+'''
+
+BASE_DIR = Path(__file__).resolve().parent
+
+def extract_uniform_frames(video_path: Path, output_dir: Path, total_frames: int):
     os.makedirs(output_dir, exist_ok=True)
 
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(str(video_path))  
     total_video_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    video_basename = os.path.splitext(os.path.basename(video_path))[0]
+    video_basename = video_path.stem
 
     frame_indices = np.linspace(0, total_video_frames - 1, total_frames * 2, dtype=int)  # request extra in case of misses
 
@@ -21,7 +29,8 @@ def extract_uniform_frames(video_path, output_dir, total_frames):
         ret, frame = cap.read()
         if ret:
             frame_name = f"{video_basename}_frame{i:04d}.jpg"
-            cv2.imwrite(os.path.join(output_dir, frame_name), frame)
+            save_path = output_dir / frame_name  
+            cv2.imwrite(str(save_path), frame)  # Convert to str when saving
             i += 1
             saved += 1
         else:
@@ -32,4 +41,7 @@ def extract_uniform_frames(video_path, output_dir, total_frames):
     print(f"Extracted {saved} frames to {output_dir} (attempted {attempted})")
 
 # Example usage
-extract_uniform_frames("raw_videos/raw_yt_20230826_01.mp4", "frames/raw_yt_20230826_01", total_frames=100)
+extract_uniform_frames(
+    (BASE_DIR / "../raw_videos/raw_ss_20250614_01.mov").resolve(),
+    (BASE_DIR / "../frames/raw_ss_20250614_01").resolve(),
+    total_frames=40)

@@ -1,6 +1,10 @@
 import os
 import yt_dlp
 
+'''
+helper script when extracting frames that downloads a vid off youtube
+'''
+
 def download_best_video(url, output_dir="raw_videos"):
     os.makedirs(output_dir, exist_ok=True)
 

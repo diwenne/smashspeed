@@ -64,7 +64,7 @@ def extract_all_unique_frames(video_path, output_dir, hash_diff_threshold=0):
 
 # Example usage
 extract_all_unique_frames(
-    video_path=(BASE_DIR/"../raw_videos/raw_ss_20250614_01.mov").resolve(),
-    output_dir=(BASE_DIR/"../frames/raw_ss_20250614_01").resolve(),
+    video_path=(BASE_DIR/"../raw_videos/clip_cosports_20250616_06.mov").resolve(),
+    output_dir=(BASE_DIR/"../frames/clip_cosports_20250616_06").resolve(),
     hash_diff_threshold=0
 )

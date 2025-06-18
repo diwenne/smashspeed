@@ -1,9 +1,7 @@
 #!/bin/bash
-
 ```
 Extracts a specified number of evenly spaced frames from a video (hardcoded), skipping unnecessary frames to save time and space.
 ```
-
 # =======================
 # CONFIGURATION SECTION
 # =======================

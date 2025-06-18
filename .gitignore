@@ -16,7 +16,8 @@ inference/inference_vid.py
 inference/speed.py
 inference/test.py
 inference/vid_dimensions.py
-scripts
+scripts/extract_all_unique_frames.py
+scripts/extract_uniform_frames.py
 
 # Data folders (large data, videos, frames)
 # data/

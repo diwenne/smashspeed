@@ -1,12 +1,16 @@
 #!/bin/bash
 
+```
+Extracts a specified number of evenly spaced frames from a video (hardcoded), skipping unnecessary frames to save time and space.
+```
+
 # =======================
 # CONFIGURATION SECTION
 # =======================
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-VIDEO_PATH="$BASE_DIR/../raw_videos/clip_cosports_20250616_01.mov"
-OUTPUT_DIR="$BASE_DIR/../frames/clip_cosports_20250616_01"
-NUM_FRAMES=30  # Number of frames you want to extract uniformly
+VIDEO_PATH="$BASE_DIR/../raw_videos/raw_cosports_20250616_02.mov"
+OUTPUT_DIR="$BASE_DIR/../frames/raw_cosports_20250616_02"
+NUM_FRAMES=240  # Number of frames to extract
 
 # =======================
 # SCRIPT STARTS HERE
@@ -14,26 +18,28 @@ NUM_FRAMES=30  # Number of frames you want to extract uniformly
 
 mkdir -p "$OUTPUT_DIR"
 
-# Get total frame count of the video
-TOTAL_FRAMES=$(ffprobe -v error -count_frames -select_streams v:0 \
-  -show_entries stream=nb_read_frames -of default=nokey=1:noprint_wrappers=1 "$VIDEO_PATH")
+# Get video duration in seconds
+DURATION=$(ffprobe -v error -select_streams v:0 -show_entries format=duration \
+  -of default=noprint_wrappers=1:nokey=1 "$VIDEO_PATH")
 
-if [ -z "$TOTAL_FRAMES" ]; then
-  echo "❌ Could not determine total frames."
+if [ -z "$DURATION" ]; then
+  echo "❌ Could not determine video duration."
   exit 1
 fi
 
-echo "Total frames in video: $TOTAL_FRAMES"
+echo "Video duration: $DURATION seconds"
 
-# Calculate frame step to extract approx NUM_FRAMES evenly spaced frames
-STEP=$((TOTAL_FRAMES / NUM_FRAMES))
-if [ "$STEP" -lt 1 ]; then
-  STEP=1
-fi
+# Calculate the interval between frames
+INTERVAL=$(awk "BEGIN {print $DURATION / $NUM_FRAMES}")
 
-echo "Extracting every $STEP frame to get approximately $NUM_FRAMES frames."
+echo "Extracting 1 frame every $INTERVAL seconds"
 
-# Extract frames using select filter
-ffmpeg -i "$VIDEO_PATH" -vf "select='not(mod(n\,$STEP))'" -vsync vfr "$OUTPUT_DIR/frame_%04d.png"
+# Extract frames at calculated timestamps
+for i in $(seq 0 $(($NUM_FRAMES - 1))); do
+  TIMESTAMP=$(awk "BEGIN {printf \"%.2f\", $i * $INTERVAL}")
+  OUTPUT_FILE=$(printf "$OUTPUT_DIR/frame_%04d.jpg" "$i")
+  ffmpeg -loglevel error -ss "$TIMESTAMP" -i "$VIDEO_PATH" -frames:v 1 "$OUTPUT_FILE"
+  echo "🖼️  Saved frame at $TIMESTAMP sec -> $(basename "$OUTPUT_FILE")"
+done
 
-echo "✅ Extracted approximately $NUM_FRAMES frames to: $OUTPUT_DIR"
+echo "✅ Done! Extracted $NUM_FRAMES frames into: $OUTPUT_DIR"

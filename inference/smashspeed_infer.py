@@ -5,74 +5,45 @@ import argparse
 import numpy as np
 from pathlib import Path
 from math import sqrt
-
-
-'''
-inference script:
-1. runs inference on every frame of a video (hardcoded)
-2. draws bounding box around the shuttlecock for each frame
-3. calculates the speed and scales it to km/hr, writing it on each frame as well
-4. saves the output video to runs/ folder 
-
-'''
-
-# example usage 
-# python speed_scaled.py --real_length_m 6 --fps 30
-# fps will be detected if not set, real_length_m is in meters
-
-
+import ffmpeg
 
 # ------------------------ CONFIG ------------------------
 BASE_DIR = Path(__file__).resolve().parent
-input_video_path = (BASE_DIR / "../raw_videos/clip_yt_20210131_01.mp4").resolve()
+input_video_path = (BASE_DIR / "../raw_videos/clip_cosports_20250608_02.mov").resolve()
 weights_path = (BASE_DIR / "../yolov5/runs/train/smashspeed_v3/weights/best.pt").resolve()
 # --------------------------------------------------------
 
 os.makedirs(BASE_DIR / "runs", exist_ok=True)
 
-import os
+def get_video_info(video_path):
+    probe = ffmpeg.probe(str(video_path))
+    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    width = int(video_info['width'])
+    height = int(video_info['height'])
+    fps = eval(video_info['r_frame_rate'])
+    return width, height, fps
 
-def convert_mov_to_mp4(input_path):
-    if not str(input_path).lower().endswith('.mov'):
-        return input_path
-    print("Converting .mov to .mp4...")
-    
-    cap = cv2.VideoCapture(input_path)
-    if not cap.isOpened():
-        print(f"Error: Cannot open video {input_path}")
-        return None
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    # New path: same name, .mp4 extension
-    output_path = input_path.rsplit('.', 1)[0] + '.mp4'
-    
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-    
+def read_frames_ffmpeg(video_path, width, height):
+    process = (
+        ffmpeg.input(str(video_path))
+        .output('pipe:', format='rawvideo', pix_fmt='rgb24')
+        .run_async(pipe_stdout=True)
+    )
+    frame_size = width * height * 3
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        in_bytes = process.stdout.read(frame_size)
+        if not in_bytes:
             break
-        out.write(frame)
-
-    cap.release()
-    out.release()
-    
-    print(f"✅ Converted to {output_path}")
-    
-    # Optionally remove the original .mov file
-    # os.remove(input_path)
-    # print(f"🗑️ Deleted original {input_path}")
-
-    return output_path
+        frame = (
+            np.frombuffer(in_bytes, np.uint8)
+            .reshape([height, width, 3])
+        )
+        yield frame
+    process.wait()
 
 def save_scale_info(pixel_length, scale_factor, video_path):
-    os.makedirs("runs", exist_ok=True)  # Ensure 'runs/' exists
     output_name = Path(video_path).stem
-    save_path = os.path.join("runs", f"{output_name}_scale_info.txt")
+    save_path = BASE_DIR / "runs" / f"{output_name}_scale_info.txt"
     with open(save_path, "w") as f:
         f.write(f"Pixel length: {pixel_length:.2f}\n")
         f.write(f"Scale factor (m/pixel): {scale_factor:.6f}\n")
@@ -81,11 +52,6 @@ def save_scale_info(pixel_length, scale_factor, video_path):
 def draw_boxes_on_frame(frame, boxes, fps, prev_center=None, prev_frame_idx=None, current_frame_idx=0, scale_factor=None):
     speed_text = ""
     current_center = None
-    # if len(boxes) > 0:
-        # # Find the box with the highest confidence score
-        # best_box = max(boxes, key=lambda b: b[4])  # index 4 is the confidence
-        # xmin, ymin, xmax, ymax = map(int, best_box[:4])
-        # or print all boxes:
     for i in range(len(boxes)):
         xmin, ymin, xmax, ymax = map(int, boxes[i][:4])
         center_x = (xmin + xmax) // 2
@@ -113,51 +79,10 @@ def draw_boxes_on_frame(frame, boxes, fps, prev_center=None, prev_frame_idx=None
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
     return frame, current_center, speed_text
 
-def run_inference_on_video(video_path, model, fixed_fps=None, scale_factor=None):
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        print(f"Error: Cannot open video {video_path}")
-        return
-    detected_fps = cap.get(cv2.CAP_PROP_FPS)
-    fps = fixed_fps if fixed_fps else detected_fps
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    output_name = Path(video_path).stem
-    out_path = BASE_DIR / "runs" / f"boxed_{output_name}.mp4"
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out_writer = cv2.VideoWriter(out_path, fourcc, fps, (width, height))
-    prev_center = None
-    prev_frame_idx = None
-    frame_idx = 0
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = model(img_rgb)
-        boxes = results.xyxy[0].cpu().numpy()
-        frame, current_center, speed_text = draw_boxes_on_frame(
-            frame, boxes, fps, prev_center, prev_frame_idx, frame_idx, scale_factor=scale_factor
-        )
-        if current_center is not None:
-            prev_center = current_center
-            prev_frame_idx = frame_idx
-        out_writer.write(frame)
-        cv2.imshow("Output", frame)
-        frame_idx += 1
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    cap.release()
-    out_writer.release()
-    cv2.destroyAllWindows()
-    print(f"✅ Saved video to: {out_path}")
-
 def get_reference_pixel_length(video_path):
-    import cv2
-    import math
-
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(str(video_path))
     ret, frame = cap.read()
+    cap.release()
     if not ret:
         print("❌ Failed to load video.")
         return None
@@ -179,12 +104,11 @@ def get_reference_pixel_length(video_path):
         if len(points) == 2:
             cv2.line(display, points[0], points[1], (255, 0, 0), 2)
             cv2.imshow("Select Reference", display)
-            print("✅ Both points selected.")
             cv2.waitKey(0)
             break
 
         cv2.imshow("Select Reference", display)
-        if cv2.waitKey(10) & 0xFF == 27:  # ESC to exit early
+        if cv2.waitKey(10) & 0xFF == 27:
             break
 
     cv2.destroyWindow("Select Reference")
@@ -192,32 +116,62 @@ def get_reference_pixel_length(video_path):
     if len(points) == 2:
         dx = points[1][0] - points[0][0]
         dy = points[1][1] - points[0][1]
-        return math.sqrt(dx ** 2 + dy ** 2)
+        return sqrt(dx ** 2 + dy ** 2)
     else:
         return None
+
+def run_inference_on_video(video_path, model, fixed_fps=None, scale_factor=None):
+    width, height, detected_fps = get_video_info(video_path)
+    fps = fixed_fps if fixed_fps else detected_fps
+    output_name = Path(video_path).stem
+    out_path = BASE_DIR / "runs" / f"boxed_{output_name}.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out_writer = cv2.VideoWriter(str(out_path), fourcc, fps, (width, height))
+
+    prev_center = None
+    prev_frame_idx = None
+
+    for frame_idx, frame_rgb in enumerate(read_frames_ffmpeg(video_path, width, height)):
+        results = model(frame_rgb)
+        all_boxes = results.xyxy[0].cpu().numpy()
+        boxes = []
+
+        if len(all_boxes) > 0:
+        # Get box with highest confidence (index 4 is confidence)
+            best_box = max(all_boxes, key=lambda b: b[4])
+            boxes = [best_box]
+        frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+        frame_bgr, current_center, _ = draw_boxes_on_frame(
+            frame_bgr, boxes, fps, prev_center, prev_frame_idx, frame_idx, scale_factor=scale_factor
+        )
+        if current_center is not None:
+            prev_center = current_center
+            prev_frame_idx = frame_idx
+        out_writer.write(frame_bgr)
+        cv2.imshow("Output", frame_bgr)
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    out_writer.release()
+    cv2.destroyAllWindows()
+    print(f"✅ Saved video to: {out_path}")
 
 def main():
     parser = argparse.ArgumentParser(description="YOLOv5 video analysis with speed overlay")
     parser.add_argument('--fps', type=float, default=None, help='Override FPS manually (default: detect from video)')
-    parser.add_argument('--real_length_m', type=float, required=True, help='Real-world reference length in meters')
+    parser.add_argument('--ref_len', type=float, default=3.91, help='Real-world reference length in meters (default: 3.91)')
     args = parser.parse_args()
 
-    processed_path = convert_mov_to_mp4(input_video_path)
-
     scale_factor = None
-    if processed_path:
-        # Always ask user to draw reference line to get pixel length
-        pixel_length = get_reference_pixel_length(processed_path)
-        if pixel_length:
-            scale_factor = args.real_length_m / pixel_length
-            print(f"📏 Detected pixel length: {pixel_length:.2f} px")
-            print(f"📏 Scale factor: {scale_factor:.6f} m/pixel")
-            save_scale_info(pixel_length, scale_factor, processed_path)
+    pixel_length = get_reference_pixel_length(input_video_path)
+    if pixel_length:
+        scale_factor = args.ref_len / pixel_length
+        print(f"📏 Detected pixel length: {pixel_length:.2f} px")
+        print(f"📏 Scale factor: {scale_factor:.6f} m/pixel")
+        save_scale_info(pixel_length, scale_factor, input_video_path)
 
-    if processed_path:
-        model = torch.hub.load('ultralytics/yolov5', 'custom', path=weights_path)
-        # model.conf = 0.25
-        run_inference_on_video(processed_path, model, fixed_fps=args.fps, scale_factor=scale_factor)
+    model = torch.hub.load('ultralytics/yolov5', 'custom', path=weights_path)
+    run_inference_on_video(input_video_path, model, fixed_fps=args.fps, scale_factor=scale_factor)
 
 if __name__ == "__main__":
     main()

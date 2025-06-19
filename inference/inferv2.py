@@ -9,7 +9,7 @@ import ffmpeg
 
 # ------------------------ CONFIG ------------------------
 BASE_DIR = Path(__file__).resolve().parent
-INPUT_VIDEO_PATH = (BASE_DIR / "../raw_videos/clip_cosports_20250608_02.mov").resolve()
+INPUT_VIDEO_PATH = (BASE_DIR / "../raw_videos/clip_cosports_20250616_01.mov").resolve()
 WEIGHTS_PATH = (BASE_DIR / "../yolov5/runs/train/smashspeed_v3/weights/best.pt").resolve()
 RUNS_DIR = BASE_DIR / "runs"
 RUNS_DIR.mkdir(exist_ok=True)
@@ -27,9 +27,10 @@ class SmashSpeed:
             self.fps = self.fps_override
         self.scale_factor = None
         self.prev_center = None
-        self.prev_frame_idx = None
+        self.prev_timestamp = None
         self.all_frames = []
         self.all_boxes = []
+        self.all_timestamps = []
 
     def load_model(self):
         # Load YOLOv5 model from custom weights
@@ -45,13 +46,13 @@ class SmashSpeed:
         return width, height, fps
 
     def read_frames(self):
-        # Generator to yield each frame as a NumPy array using ffmpeg
         process = (
             ffmpeg.input(str(self.video_path))
             .output('pipe:', format='rawvideo', pix_fmt='rgb24')
             .run_async(pipe_stdout=True)
         )
         frame_size = self.width * self.height * 3
+        frame_idx = 0
         while True:
             in_bytes = process.stdout.read(frame_size)
             if not in_bytes:
@@ -60,8 +61,12 @@ class SmashSpeed:
                 np.frombuffer(in_bytes, np.uint8)
                 .reshape([self.height, self.width, 3])
             )
-            yield frame
+            timestamp = frame_idx / self.fps
+            yield frame, timestamp
+            frame_idx += 1
         process.wait()
+
+        
 
     def draw_reference_line(self):
         # Display one frame for user to draw a real-world distance reference
@@ -114,84 +119,69 @@ class SmashSpeed:
             f.write(f"Scale factor (m/pixel): {self.scale_factor:.6f}\n")
         print(f"📁 Saved scale info to: {save_path}")
 
-    def draw_boxes_on_frame(self, frame, boxes, frame_idx,draw_speed=True):
-        # Draw bounding boxes and speed overlay
+    def draw_boxes_on_frame(self, frame, boxes, timestamp, draw_speed=True):
         speed_text = ""
         current_center = None
-        for i in range(len(boxes)):
-            xmin, ymin, xmax, ymax = map(int, boxes[i][:4])
+        for box in boxes:
+            xmin, ymin, xmax, ymax = map(int, box[:4])
             center_x = (xmin + xmax) // 2
             center_y = (ymin + ymax) // 2
             current_center = (center_x, center_y)
             cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 0, 255), 2)
-            if self.prev_center is not None and draw_speed:
+            if self.prev_center and self.prev_timestamp is not None and draw_speed:
                 dx = center_x - self.prev_center[0]
                 dy = center_y - self.prev_center[1]
                 dist = sqrt(dx**2 + dy**2)
-                frame_diff = frame_idx - self.prev_frame_idx
-                time_sec = frame_diff / self.fps if frame_diff > 0 else 1e-6
-                px_per_sec = dist / time_sec if time_sec > 0 else 0
+                dt = max(timestamp - self.prev_timestamp, 1e-6)
+                px_per_sec = dist / dt
                 speed_text = f"{px_per_sec:.1f} px/s"
-
                 if self.scale_factor:
-                    m_per_sec = px_per_sec * self.scale_factor
-                    km_per_hr = m_per_sec * 3.6
-                    speed_text += f" | {km_per_hr:.1f} km/h"
-
+                    kmph = px_per_sec * self.scale_factor * 3.6
+                    speed_text += f" | {kmph:.1f} km/h"
                 cv2.putText(frame, speed_text, (xmin, ymin - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-        cv2.putText(frame, f"FPS: {self.fps:.2f}", (10, 15),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                cv2.putText(frame, f"Time: {timestamp:.3f}s", (10, 25), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
         return frame, current_center, speed_text
 
     def run_inference(self):
-        """
-        Runs YOLOv5 inference on the input video, draws bounding boxes, and stores the frames and boxes in memory.
-        After processing, the user is prompted (within the OpenCV window) to either review the results or save them.
-        """
-        self.all_frames = []
-        self.all_boxes = []
+        self.all_frames.clear()
+        self.all_boxes.clear()
+        self.all_timestamps.clear()
 
-        for frame_idx, frame_rgb in enumerate(self.read_frames()):
-            # Run YOLOv5 model inference
-            results = self.model(frame_rgb)
+        for frame, timestamp in self.read_frames():
+            results = self.model(frame)
             all_boxes = results.xyxy[0].cpu().numpy()
             best_box = [max(all_boxes, key=lambda b: b[4])] if len(all_boxes) > 0 else []
 
-            # Convert RGB to BGR and store frame and boxes
-            frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
             self.all_frames.append(frame_bgr.copy())
             self.all_boxes.append(best_box)
+            self.all_timestamps.append(timestamp)
 
-            # Draw box and compute speed
-            frame_bgr, current_center, _ = self.draw_boxes_on_frame(frame_bgr, best_box, frame_idx)
+            frame_bgr, current_center, _ = self.draw_boxes_on_frame(frame_bgr, best_box, timestamp)
             if current_center is not None:
                 self.prev_center = current_center
-                self.prev_frame_idx = frame_idx
+                self.prev_timestamp = timestamp
 
-            # Display frame with bounding box
             cv2.imshow("Output", frame_bgr)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
-        # Prompt user inside the OpenCV window instead of destroying it
         prompt_frame = self.all_frames[-1].copy()
-        cv2.putText(prompt_frame, "Press 'r' to review or 's' to save and exit",
+        cv2.putText(prompt_frame, "Press 'r' to review or 'q' to save and exit",
                     (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
         cv2.imshow("Output", prompt_frame)
 
-        # Wait for review or save key
         while True:
             key = cv2.waitKey(0) & 0xFF
             if key == ord('r'):
                 self.review_mode()
                 break
-            elif key == ord('s'):
+            elif key == ord('q'):
                 self.save_video()
                 break
 
-        # Clean up after user choice
         cv2.destroyAllWindows()
 
     def save_video(self):
@@ -225,7 +215,7 @@ class SmashSpeed:
             cx, cy = (xmin + xmax) // 2, (ymin + ymax) // 2
 
             if event == cv2.EVENT_LBUTTONDOWN:
-                if abs(x - cx) < 10 and abs(y - cy) < 10:
+                if xmin <= x <= xmax and ymin <= y <= ymax:
                     dragging = True
                     drag_offset = (x - cx, y - cy)
 
@@ -291,33 +281,40 @@ class SmashSpeed:
         print("🔁 Running updated inference with modified boxes...")
 
         self.prev_center = None
-        self.prev_frame_idx = None
+        self.prev_timestamp = None
 
         output_name = self.video_path.stem
         out_path = RUNS_DIR / f"reviewed_{output_name}.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out_writer = cv2.VideoWriter(str(out_path), fourcc, self.fps, (self.width, self.height))
+        writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (self.width, self.height))
 
         cv2.namedWindow("Final Output", cv2.WINDOW_NORMAL)
+        # cv2.waitKey(500)
+        for idx, frame in enumerate(self.all_frames):
+            boxes = self.all_boxes[idx]
+            timestamp = self.all_timestamps[    idx]
 
-        for frame_idx, frame in enumerate(self.all_frames):
-            boxes = self.all_boxes[frame_idx]
             frame_copy = frame.copy()
-            frame_out, current_center, _ = self.draw_boxes_on_frame(
-                frame_copy, boxes, frame_idx, draw_speed=True
-            )
+            frame_out, current_center, _ = self.draw_boxes_on_frame(frame_copy, boxes, timestamp, draw_speed=True)
+
             if current_center is not None:
                 self.prev_center = current_center
-                self.prev_frame_idx = frame_idx
+                self.prev_timestamp = timestamp
 
-            out_writer.write(frame_out)
+            writer.write(frame_out)
             cv2.imshow("Final Output", frame_out)
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 print("⏹️ Display interrupted by user.")
                 break
 
-        out_writer.release()
-        cv2.destroyWindow("Final Output")
+        writer.release()
+
+        # Show the last frame and wait for a key to close
+        cv2.imshow("Final Output", frame_out)
+        print("✅ Finished. Press any key to close window.")
+        # cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
         print(f"💾 Final reviewed video saved: {out_path}")
 
 

@@ -208,32 +208,109 @@ class SmashSpeed:
         print(f"✅ Saved reviewed video to: {out_path}")
 
     def review_mode(self):
-        print("🛠️ Entered review mode. Use 'a'/'d' to browse, 'q' to quit and save")
+        print("🛠️ Entered review mode. Use 'a'/'d' to navigate, click & drag to move box, press 'q' to finish and recalculate speed, press 'n' to create new box")
         current_frame_idx = 0
+        self.modified_boxes = {}
+
         cv2.namedWindow("Review Mode")
+        dragging = False
+        drag_offset = (0, 0)
+
+        def mouse_callback(event, x, y, flags, param):
+            nonlocal dragging, drag_offset
+            boxes = self.all_boxes[current_frame_idx]
+            if not boxes:
+                return
+            box = boxes[0]
+            xmin, ymin, xmax, ymax = map(int, box[:4])
+            cx, cy = (xmin + xmax) // 2, (ymin + ymax) // 2
+
+            if event == cv2.EVENT_LBUTTONDOWN:
+                if abs(x - cx) < 10 and abs(y - cy) < 10:
+                    dragging = True
+                    drag_offset = (x - cx, y - cy)
+
+            elif event == cv2.EVENT_MOUSEMOVE and dragging:
+                dx, dy = drag_offset
+                new_cx = x - dx
+                new_cy = y - dy
+                w = xmax - xmin
+                h = ymax - ymin
+                new_box = [new_cx - w // 2, new_cy - h // 2, new_cx + w // 2, new_cy + h // 2, box[4], box[5]]
+                self.all_boxes[current_frame_idx] = [new_box]
+
+            elif event == cv2.EVENT_LBUTTONUP:
+                dragging = False
+                self.modified_boxes[current_frame_idx] = self.all_boxes[current_frame_idx]
+
+        cv2.setMouseCallback("Review Mode", mouse_callback)
 
         while True:
             frame = self.all_frames[current_frame_idx].copy()
             boxes = self.all_boxes[current_frame_idx]
-            frame, _, _ = self.draw_boxes_on_frame(frame, boxes, current_frame_idx,draw_speed=False)
-            cv2.putText(frame, f"Review Mode - Frame {current_frame_idx+1}/{len(self.all_frames)}", (30, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-            cv2.imshow("Review Mode", frame)
+            frame, _, _ = self.draw_boxes_on_frame(frame, boxes, current_frame_idx, draw_speed=False)
 
-            key = cv2.waitKey(0) & 0xFF
+            cv2.putText(frame, f"Review Mode - Frame {current_frame_idx+1}/{len(self.all_frames)}", (30, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
+            cv2.imshow("Review Mode", frame)
+            key = cv2.waitKey(20) & 0xFF
 
             if key == ord('q'):
-                print("🚪 Exiting review mode.")
+                print("✅ Review complete. Recalculating speed...")
                 break
-            elif key == ord('d'):  # Next frame
+            elif key == ord('d'):
                 current_frame_idx = min(current_frame_idx + 1, len(self.all_frames) - 1)
-            elif key == ord('a'):  # Previous frame
+            elif key == ord('a'):
                 current_frame_idx = max(current_frame_idx - 1, 0)
-            else:
-                print(f"Pressed key code: {key}")
+                
+            elif key == ord('n'):  # Add new bounding box
+                print("➕ Adding new bounding box...")
+                frame_h, frame_w = self.all_frames[current_frame_idx].shape[:2]
+                box_w, box_h = 60, 60  # Initial size of new box
+                cx, cy = frame_w // 2, frame_h // 2
+                new_box = [cx - box_w // 2, cy - box_h // 2, cx + box_w // 2, cy + box_h // 2, 1.0, 0]  # [xmin, ymin, xmax, ymax, conf, cls]
+                
+                self.all_boxes[current_frame_idx] = [new_box]  # Replace existing or
+                self.modified_boxes[current_frame_idx] = [new_box]
+                print(f"✅ Box added at center: ({cx}, {cy})")
 
         cv2.destroyAllWindows()
-        self.save_video()
+        self.recalculate_speed()
+    
+    
+    def recalculate_speed(self):
+        print("🔁 Running updated inference with modified boxes...")
+
+        self.prev_center = None
+        self.prev_frame_idx = None
+
+        output_name = self.video_path.stem
+        out_path = RUNS_DIR / f"reviewed_{output_name}.mp4"
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        out_writer = cv2.VideoWriter(str(out_path), fourcc, self.fps, (self.width, self.height))
+
+        cv2.namedWindow("Final Output", cv2.WINDOW_NORMAL)
+
+        for frame_idx, frame in enumerate(self.all_frames):
+            boxes = self.all_boxes[frame_idx]
+            frame_copy = frame.copy()
+            frame_out, current_center, _ = self.draw_boxes_on_frame(
+                frame_copy, boxes, frame_idx, draw_speed=True
+            )
+            if current_center is not None:
+                self.prev_center = current_center
+                self.prev_frame_idx = frame_idx
+
+            out_writer.write(frame_out)
+            cv2.imshow("Final Output", frame_out)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                print("⏹️ Display interrupted by user.")
+                break
+
+        out_writer.release()
+        cv2.destroyWindow("Final Output")
+        print(f"💾 Final reviewed video saved: {out_path}")
 
 
 def main():

@@ -46,6 +46,7 @@ Thumbs.db
 .idea/
 *.sublime-workspace
 *.sublime-project
+*.code-workspace
 
 # Others
 *.zip

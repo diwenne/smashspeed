@@ -208,7 +208,6 @@ class SmashSpeed:
         print(f"✅ Saved reviewed video to: {out_path}")
 
     def review_mode(self):
-        print("🛠️ Entered review mode. Use 'a'/'d' to navigate, click & drag to move box, press 'q' to finish and recalculate speed, press 'n' to create new box")
         current_frame_idx = 0
         self.modified_boxes = {}
 
@@ -250,8 +249,21 @@ class SmashSpeed:
             boxes = self.all_boxes[current_frame_idx]
             frame, _, _ = self.draw_boxes_on_frame(frame, boxes, current_frame_idx, draw_speed=False)
 
+            # Frame info
             cv2.putText(frame, f"Review Mode - Frame {current_frame_idx+1}/{len(self.all_frames)}", (30, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+
+            # Instructions overlay
+            instructions = [
+                "'a': Prev frame",
+                "'d': Next frame",
+                "Click + drag: Move box",
+                "'n': New box",
+                "'q': Finish & Recalculate"
+            ]
+            for i, text in enumerate(instructions):
+                cv2.putText(frame, text, (30, 70 + i * 25),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
 
             cv2.imshow("Review Mode", frame)
             key = cv2.waitKey(20) & 0xFF
@@ -263,17 +275,13 @@ class SmashSpeed:
                 current_frame_idx = min(current_frame_idx + 1, len(self.all_frames) - 1)
             elif key == ord('a'):
                 current_frame_idx = max(current_frame_idx - 1, 0)
-                
-            elif key == ord('n'):  # Add new bounding box
-                print("➕ Adding new bounding box...")
+            elif key == ord('n'):
                 frame_h, frame_w = self.all_frames[current_frame_idx].shape[:2]
-                box_w, box_h = 60, 60  # Initial size of new box
+                box_w, box_h = 60, 60
                 cx, cy = frame_w // 2, frame_h // 2
-                new_box = [cx - box_w // 2, cy - box_h // 2, cx + box_w // 2, cy + box_h // 2, 1.0, 0]  # [xmin, ymin, xmax, ymax, conf, cls]
-                
-                self.all_boxes[current_frame_idx] = [new_box]  # Replace existing or
+                new_box = [cx - box_w // 2, cy - box_h // 2, cx + box_w // 2, cy + box_h // 2, 1.0, 0]
+                self.all_boxes[current_frame_idx] = [new_box]
                 self.modified_boxes[current_frame_idx] = [new_box]
-                print(f"✅ Box added at center: ({cx}, {cy})")
 
         cv2.destroyAllWindows()
         self.recalculate_speed()

@@ -9,7 +9,7 @@ import ffmpeg
 
 # ------------------------ CONFIG ------------------------
 BASE_DIR = Path(__file__).resolve().parent
-INPUT_VIDEO_PATH = (BASE_DIR / "../raw_videos/clip_cosports_20250616_01.mov").resolve()
+INPUT_VIDEO_PATH = (BASE_DIR / "videos/hao7.mov").resolve()
 WEIGHTS_PATH = (BASE_DIR / "../yolov5/runs/train/smashspeed_v3/weights/best.pt").resolve()
 RUNS_DIR = BASE_DIR / "runs"
 RUNS_DIR.mkdir(exist_ok=True)
@@ -122,15 +122,37 @@ class SmashSpeed:
     def draw_boxes_on_frame(self, frame, boxes, timestamp, draw_speed=True):
         speed_text = ""
         current_center = None
+
         for box in boxes:
             xmin, ymin, xmax, ymax = map(int, box[:4])
-            center_x = (xmin + xmax) // 2
-            center_y = (ymin + ymax) // 2
-            current_center = (center_x, center_y)
+            box_w = xmax - xmin
+            box_h = ymax - ymin
+            cx = (xmin + xmax) // 2
+            cy = (ymin + ymax) // 2
+
+            # Determine direction-aware tip
+            if self.prev_center is None:
+                tip_x, tip_y = cx, cy
+            else:
+                dx = cx - self.prev_center[0]
+                dy = cy - self.prev_center[1]
+                if abs(dx) > abs(dy):
+                    tip_x = xmax if dx >= 0 else xmin
+                    tip_y = cy
+                else:
+                    tip_x = cx
+                    tip_y = ymax if dy >= 0 else ymin
+
+            current_center = (tip_x, tip_y)
+
+            # Draw bounding box and tip marker
             cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (0, 0, 255), 2)
+            cv2.circle(frame, current_center, 4, (0, 255, 0), -1)  # green dot for tip
+
+            # Compute and draw speed
             if self.prev_center and self.prev_timestamp is not None and draw_speed:
-                dx = center_x - self.prev_center[0]
-                dy = center_y - self.prev_center[1]
+                dx = tip_x - self.prev_center[0]
+                dy = tip_y - self.prev_center[1]
                 dist = sqrt(dx**2 + dy**2)
                 dt = max(timestamp - self.prev_timestamp, 1e-6)
                 px_per_sec = dist / dt
@@ -140,8 +162,11 @@ class SmashSpeed:
                     speed_text += f" | {kmph:.1f} km/h"
                 cv2.putText(frame, speed_text, (xmin, ymin - 10),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-                cv2.putText(frame, f"Time: {timestamp:.3f}s", (10, 25), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
+        # Draw timestamp regardless of box presence
+        cv2.putText(frame, f"Time: {timestamp:.3f}s", (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+
         return frame, current_center, speed_text
 
     def run_inference(self):

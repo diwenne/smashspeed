@@ -8,6 +8,6 @@ names: ['shuttlecock']
 roboflow:
   workspace: diwenne
   project: smashspeed
-  version: 4
+  version: 5
   license: CC BY 4.0
-  url: https://universe.roboflow.com/diwenne/smashspeed/dataset/4
+  url: https://universe.roboflow.com/diwenne/smashspeed/dataset/5

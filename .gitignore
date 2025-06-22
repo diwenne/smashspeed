@@ -24,7 +24,6 @@ scripts/png_to_jpg.sh
 # data/
 raw_videos/
 frames/
-data/
 
 # Model weights (large files)
 weights/

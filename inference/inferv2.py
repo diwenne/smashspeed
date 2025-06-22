@@ -224,7 +224,6 @@ class SmashSpeed:
 
     def review_mode(self):
         current_frame_idx = 0
-        self.modified_boxes = {}
 
         cv2.namedWindow("Review Mode")
         dragging = False
@@ -255,7 +254,7 @@ class SmashSpeed:
 
             elif event == cv2.EVENT_LBUTTONUP:
                 dragging = False
-                self.modified_boxes[current_frame_idx] = self.all_boxes[current_frame_idx]
+                # No longer using modified_boxes; changes are directly in all_boxes
 
         cv2.setMouseCallback("Review Mode", mouse_callback)
 
@@ -274,6 +273,7 @@ class SmashSpeed:
                 "'d': Next frame",
                 "Click + drag: Move box",
                 "'n': New box",
+                "'x': Delete box",
                 "'q': Finish & Recalculate"
             ]
             for i, text in enumerate(instructions):
@@ -296,7 +296,8 @@ class SmashSpeed:
                 cx, cy = frame_w // 2, frame_h // 2
                 new_box = [cx - box_w // 2, cy - box_h // 2, cx + box_w // 2, cy + box_h // 2, 1.0, 0]
                 self.all_boxes[current_frame_idx] = [new_box]
-                self.modified_boxes[current_frame_idx] = [new_box]
+            elif key == ord('x'):
+                self.all_boxes[current_frame_idx] = []
 
         cv2.destroyAllWindows()
         self.recalculate_speed()

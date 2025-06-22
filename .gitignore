@@ -19,6 +19,7 @@ inference/vid_dimensions.py
 scripts/extract_all_unique_frames.py
 scripts/extract_uniform_frames.py
 scripts/png_to_jpg.sh
+scripts/concat_videos.sh
 
 # Data folders (large data, videos, frames)
 # data/

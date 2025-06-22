@@ -10,7 +10,7 @@ import ffmpeg
 # ------------------------ CONFIG ------------------------
 BASE_DIR = Path(__file__).resolve().parent
 INPUT_VIDEO_PATH = (BASE_DIR / "videos/hao7.mov").resolve()
-WEIGHTS_PATH = (BASE_DIR / "../yolov5/runs/train/smashspeed_v3/weights/best.pt").resolve()
+WEIGHTS_PATH = (BASE_DIR / "../yolov5/runs/train/smashspeed_v4/weights/best.pt").resolve()
 RUNS_DIR = BASE_DIR / "runs"
 RUNS_DIR.mkdir(exist_ok=True)
 # --------------------------------------------------------

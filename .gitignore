@@ -11,6 +11,7 @@ env/
 # Rough work
 inference/imgs/
 inference/runs/
+inference/videos/
 inference/inference_img.py
 inference/inference_vid.py
 inference/speed.py

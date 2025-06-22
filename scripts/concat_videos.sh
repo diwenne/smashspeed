@@ -10,12 +10,33 @@ Helper script that concatenates clips or videos to make frame extraction more me
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 VIDEOS=(
-  "$BASE_DIR/../raw_videos/raw1.mov"
-  "$BASE_DIR/../raw_videos/raw2.mov"
-  "$BASE_DIR/../raw_videos/raw3.mov"
+  "$BASE_DIR/../raw_videos/diwen1.mov"
+  "$BASE_DIR/../raw_videos/diwen2.mov"
+  "$BASE_DIR/../raw_videos/diwen3.mov"
+  "$BASE_DIR/../raw_videos/diwen4.mov"
+  "$BASE_DIR/../raw_videos/diwen5.mov"
+  "$BASE_DIR/../raw_videos/diwen6.mov"
+  "$BASE_DIR/../raw_videos/diwen7.mov"
+  "$BASE_DIR/../raw_videos/diwen8.mov"
+  "$BASE_DIR/../raw_videos/diwen9.mov"
+  "$BASE_DIR/../raw_videos/diwen10.mov"
+  "$BASE_DIR/../raw_videos/diwen11.mov"
+  "$BASE_DIR/../raw_videos/diwen12.mov"
+  "$BASE_DIR/../raw_videos/hao1.mov"
+  "$BASE_DIR/../raw_videos/hao2.mov"
+  "$BASE_DIR/../raw_videos/hao3.mov"
+  "$BASE_DIR/../raw_videos/hao4.mov"
+  "$BASE_DIR/../raw_videos/hao5.mov"
+  "$BASE_DIR/../raw_videos/hao6.mov"
+  "$BASE_DIR/../raw_videos/hao7.mov"
+  "$BASE_DIR/../raw_videos/hao8.mov"
+  "$BASE_DIR/../raw_videos/hao9.mov"
+  "$BASE_DIR/../raw_videos/hao10.mov"
+  "$BASE_DIR/../raw_videos/hao11.mov"
+
 )
 
-OUTPUT="$BASE_DIR/../raw_videos/raw_cosports_20250616_02.mp4"
+OUTPUT="$BASE_DIR/../raw_videos/concatclips_cosports_20250618_01.mp4"
 LIST_FILE="$BASE_DIR/videos_to_concat.txt"
 
 # =======================

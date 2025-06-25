@@ -274,8 +274,8 @@ class SmashSpeed:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
 
         # Draw timestamp always
-        cv2.putText(frame, f"Time: {timestamp:.3f}s", (10, 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+        cv2.putText(frame, f"Time: {timestamp:.3f}s", (10, 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
 
         return frame, current_center, speed_text
 
@@ -311,7 +311,7 @@ class SmashSpeed:
         # Show last frame with prompt to review or save
         prompt_frame = self.all_frames[-1].copy()
         cv2.putText(prompt_frame, "Press 'r' to review or 'q' to save and exit",
-                    (30, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
+                    (25, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
         cv2.imshow("Output", prompt_frame)
 
         while True:
@@ -324,21 +324,7 @@ class SmashSpeed:
                 break
 
         cv2.destroyAllWindows()
-
-    def save_video(self):
-        """
-        Saves the processed frames with bounding boxes as a new video file.
-        """
-        output_name = self.video_path.stem
-        out_path = RUNS_DIR / f"boxed_{output_name}.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out_writer = cv2.VideoWriter(str(out_path), fourcc, self.fps, (self.width, self.height))
-
-        for frame in self.all_frames:
-            out_writer.write(frame)
-
-        out_writer.release()
-        print(f"✅ Saved reviewed video to: {out_path}")
+        
 
     def review_mode(self):
         """
@@ -427,7 +413,7 @@ class SmashSpeed:
             frame = self.all_frames[current_frame_idx].copy()
             boxes = self.all_boxes[current_frame_idx]
 
-            frame, _, _ = self.draw_boxes_on_frame(frame, boxes, current_frame_idx, draw_speed=False)
+            frame, _, _ = self.draw_boxes_on_frame(frame, boxes, self.all_timestamps[current_frame_idx], draw_speed=False)
 
             # Frame index and instructions
             cv2.putText(frame, f"Review Mode - Frame {current_frame_idx+1}/{len(self.all_frames)}", (30, 40),
@@ -466,22 +452,26 @@ class SmashSpeed:
                 self.all_boxes[current_frame_idx] = []
 
         cv2.destroyAllWindows()
-        self.recalculate_speed()
+        self.save_video()
 
-    def recalculate_speed(self):
+    def save_video(self, output_name_suffix="reviewed"):
         """
-        Recalculates speeds after box modifications and saves the reviewed video.
+        Draws speed annotations and saves the final output video.
+
+        Args:
+            output_name_suffix (str): Suffix for output video filename.
         """
-        print("🔁 Running updated inference with modified boxes...")
+        print("💾 Exporting video with drawn boxes and speed...")
 
         self.prev_center = None
         self.prev_timestamp = None
 
         output_name = self.video_path.stem
-        out_path = RUNS_DIR / f"reviewed_{output_name}.mp4"
+        out_path = RUNS_DIR / f"{output_name_suffix}_{output_name}.mp4"
         writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*'mp4v'), self.fps, (self.width, self.height))
 
         cv2.namedWindow("Final Output", cv2.WINDOW_NORMAL)
+
         for idx, frame in enumerate(self.all_frames):
             boxes = self.all_boxes[idx]
             timestamp = self.all_timestamps[idx]
@@ -501,13 +491,8 @@ class SmashSpeed:
                 break
 
         writer.release()
-
-        cv2.imshow("Final Output", frame_out)
-        print("✅ Finished. Press any key to close window.")
-        # cv2.waitKey(0)
         cv2.destroyAllWindows()
-
-        print(f"💾 Final reviewed video saved: {out_path}")
+        print(f"✅ Final video saved: {out_path}")
 
 
 def main():
